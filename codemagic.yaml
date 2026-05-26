@@ -9,7 +9,7 @@ workflows:
       java: 17
 
       android_signing:
-        - roadSafetyProj
+        - emergencyassist-keystore
 
     scripts:
       - name: Install dependencies
