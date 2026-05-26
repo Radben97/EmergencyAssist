@@ -15,7 +15,7 @@ import {
     ActivityIndicator,
     Modal,
     Alert,
-  SafeAreaView
+  SafeAreaView,
 } from 'react-native';
 import MapplsGL from 'mappls-map-react-native';
 import Geolocation from "react-native-geolocation-service"
@@ -67,8 +67,21 @@ const EMERGENCY_SERVICES = [
 ];
 
 const UTILITY_SERVICES = [
-  { id: 'towing', label: 'Towing', icon: '🔧', color: '#7B1FA2' },
-  { id: 'puncture', label: 'Puncture', icon: '⊙', color: '#3949AB' },
+  {
+    id: 'towing',
+    label: 'Towing',
+    icon: '🔧',
+    color: '#7B1FA2',
+    keyword: 'towing',
+  },
+
+  {
+    id: 'puncture',
+    label: 'Puncture',
+    icon: '⊙',
+    color: '#3949AB',
+    keyword: 'tyre puncture shop',
+  },
 ];
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -170,459 +183,6 @@ const ChatbotPanel = () => {
   );
 };
 
-// GPS Location Panel
-const dummyfunc = () => {
-  const [modalVisible, setModalVisible] = useState(false);
-
-  return (
-    <>
-      <TouchableOpacity
-        style={styles.locationPanel}
-        onPress={() => setModalVisible(true)}
-        activeOpacity={0.85}
-      >
-        <View style={styles.locationIconWrap}>
-          <Text style={styles.locationIcon}>➤</Text>
-        </View>
-        <Text style={styles.locationTitle}>Your Current Location</Text>
-        <Text style={styles.locationSub}>Tap to open map</Text>
-      </TouchableOpacity>
-
-      <MapModal
-        visible={modalVisible}
-        onClose={() => setModalVisible(false)}
-      />
-    </>
-  );
-};
-
-// ─── MapModal ─────────────────────────────────────────────────────────────────
-interface MapModalProps {
-  visible: boolean;
-  onClose: () => void;
-  /**
-   * DEV → leave undefined; chatbot will call this in production.
-   * Pass a { lat, lng } to pre-set the destination from outside.
-   */
-  externalDestination?: LatLng;
-}
-
-export const MapModal = ({ visible, onClose, externalDestination }: MapModalProps) => {
-  const cameraRef = useRef<ElementRef<typeof MapplsGL.Camera>>(null);
-const mapRef = useRef<ElementRef<typeof MapplsGL.MapView>>(null);
-
-  const [userLocation, setUserLocation] = useState<LatLng | null>(null);
-  const [destination, setDestination] = useState<LatLng>(
-    CHENNAI_CENTER
-  );
-
-  // Debug input state (shown only when externalDestination is not set)
-  const [debugInput, setDebugInput] = useState(
-    `${CHENNAI_CENTER.lat}, ${CHENNAI_CENTER.lng}`
-  );
-
-  const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
-  const [loadingRoute, setLoadingRoute] = useState(false);
-  const [mapReady, setMapReady] = useState(false);
-  const [locationPermitted, setLocationPermitted] = useState(false);
-
-  // ── Get user's GPS location ──────────────────────────────────────────────
-  useEffect(() => {
-  if (!visible) return;
-
-  const getLocation = () => {
-    Geolocation.getCurrentPosition(
-      pos => {
-        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        setUserLocation(loc);
-      },
-      err => Alert.alert('GPS Error', err.message),
-      { enableHighAccuracy: true, timeout: 30000, maximumAge: 5000 }
-    );
-  };
-
-  if (Platform.OS === 'android') {
-    PermissionsAndroid.request(
-      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-      {
-        title: 'Location Permission',
-        message: 'This app needs your location to show the map and route.',
-        buttonPositive: 'Allow',
-        buttonNegative: 'Deny',
-      }
-    ).then(result => {
-      if (result === PermissionsAndroid.RESULTS.GRANTED) {
-        setLocationPermitted(true);
-  getLocation();
-      } else {
-        Alert.alert('Permission Denied', 'Location access is required for the map.');
-      }
-    });
-  } else {
-    getLocation(); // iOS handles permissions via Info.plist
-  }
-}, [visible]);
-
-  // ── Sync external destination (from chatbot) ─────────────────────────────
-  useEffect(() => {
-    if (externalDestination) {
-      setDestination(externalDestination);
-      setDebugInput(`${externalDestination.lat}, ${externalDestination.lng}`);
-    }
-  }, [externalDestination]);
-
-  // ── Fetch route when both points are ready ───────────────────────────────
-  useEffect(() => {
-  if (
-    userLocation &&
-    destination &&
-    locationPermitted &&
-    mapReady
-  ) {
-    fetchRoute();
-  }
-}, [
-  userLocation,
-  destination,
-  locationPermitted,
-  mapReady,
-  ]);
-
-  const decodePolyline = (
-  str: string,
-  precision = 5
-): [number, number][] => {
-  let index = 0;
-  let lat = 0;
-  let lng = 0;
-
-  const coordinates: [number, number][] = [];
-  const factor = Math.pow(10, precision);
-
-  while (index < str.length) {
-    let b;
-    let shift = 0;
-    let result = 0;
-
-    do {
-      b = str.charCodeAt(index++) - 63;
-      result |= (b & 0x1f) << shift;
-      shift += 5;
-    } while (b >= 0x20);
-
-    const dlat =
-      result & 1 ? ~(result >> 1) : result >> 1;
-
-    lat += dlat;
-
-    shift = 0;
-    result = 0;
-
-    do {
-      b = str.charCodeAt(index++) - 63;
-      result |= (b & 0x1f) << shift;
-      shift += 5;
-    } while (b >= 0x20);
-
-    const dlng =
-      result & 1 ? ~(result >> 1) : result >> 1;
-
-    lng += dlng;
-
-    coordinates.push([
-      lng / factor,
-      lat / factor,
-    ]);
-  }
-
-  return coordinates;
-};
-// end of decodePolyline
-const fetchRoute = async () => {
-  if (!userLocation) return;
-
-  setLoadingRoute(true);
-  setRouteInfo(null);
-
-  try {
-    const response = await MapplsGL.RestApi.direction({
-      origin: `${userLocation.lng},${userLocation.lat}`,
-
-      destination: `${destination.lng},${destination.lat}`,
-
-      profile:
-        MapplsGL.RestApi.DirectionsCriteria.PROFILE_DRIVING,
-
-      resource:
-        MapplsGL.RestApi.DirectionsCriteria.RESOURCE_ROUTE,
-
-      overview:
-        MapplsGL.RestApi.DirectionsCriteria.OVERVIEW_FULL,
-
-      geometries:
-        MapplsGL.RestApi.DirectionsCriteria.GEOMETRY_POLYLINE,
-
-      steps: false,
-    });
-
-    console.log(
-      "FULL DIRECTION RESPONSE:",
-      JSON.stringify(response, null, 2)
-    );
-
-    // SDK response structure fix
-    const route =
-      response?.routes?.[0] ||
-      response?.routes?.[0];
-
-    if (!route) {
-      throw new Error("No route returned");
-    }
-
-    // decode polyline
-    const coords = decodePolyline(
-      route.geometry,
-      5
-    );
-
-    setRouteInfo({
-      distanceKm: (
-        route.distance / 1000
-      ).toFixed(1),
-
-      durationMin: Math.round(
-        route.duration / 60
-      ).toString(),
-
-      coordinates: coords,
-    });
-
-    // fit map to route
-    const lngs = coords.map(c => c[0]);
-    const lats = coords.map(c => c[1]);
-
-    cameraRef.current?.fitBounds(
-      [Math.min(...lngs), Math.min(...lats)],
-      [Math.max(...lngs), Math.max(...lats)],
-      [80, 80, 80, 80],
-      1000
-    );
-
-  } catch (err: any) {
-    console.log("ROUTE ERROR:", err);
-
-    Alert.alert(
-      "Route Error",
-      err?.message || "Failed to fetch route"
-    );
-  } finally {
-    setLoadingRoute(false);
-  }
-};
-
-  // ── Parse debug input and set destination ────────────────────────────────
-  const applyDebugDestination = () => {
-    const parts = debugInput.split(',').map(s => parseFloat(s.trim()));
-    if (parts.length !== 2 || parts.some(isNaN)) {
-      Alert.alert('Invalid input', 'Enter as: lat, lng   e.g. 13.0827, 80.2707');
-      return;
-    }
-    setDestination({ lat: parts[0], lng: parts[1] });
-  };
-
-  // ── Re-center on user ────────────────────────────────────────────────────
-  const recenter = () => {
-    if (!userLocation) return;
-    cameraRef.current?.setCamera({
-      centerCoordinate: [userLocation.lng, userLocation.lat],
-      zoomLevel: 14,
-      animationDuration: 600,
-    });
-  };
-
-  // ── GeoJSON route layer ──────────────────────────────────────────────────
-  const routeGeoJSON: GeoJSON.Feature | null = routeInfo
-    ? {
-        type: 'Feature',
-        geometry: { type: 'LineString', coordinates: routeInfo.coordinates },
-        properties: {},
-      }
-    : null;
-  return (
-    <Modal visible={visible} animationType="slide" statusBarTranslucent onRequestClose={onClose}>
-      <SafeAreaView style={mapStyles.root}>
-        <StatusBar barStyle="light-content" backgroundColor="#1F2937" />
-
-        {/* ── Header ── */}
-        <View style={mapStyles.header}>
-          <TouchableOpacity onPress={onClose} style={mapStyles.closeBtn} activeOpacity={0.8}>
-            <Text style={mapStyles.closeBtnText}>✕</Text>
-          </TouchableOpacity>
-          <Text style={mapStyles.headerTitle}>Navigation</Text>
-          <TouchableOpacity onPress={recenter} style={mapStyles.recenterBtn} activeOpacity={0.8}>
-            <Text style={mapStyles.recenterIcon}>⊕</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* ── DEV: Debug destination input ── */}
-        {/* REMOVE this block in production; chatbot sets externalDestination instead */}
-        {!externalDestination && (
-          <View style={mapStyles.debugBar}>
-            <Text style={mapStyles.debugLabel}>🛠 Dest (lat, lng):</Text>
-            <TextInput
-              style={mapStyles.debugInput}
-              value={debugInput}
-              onChangeText={setDebugInput}
-              placeholder="13.0827, 80.2707"
-              placeholderTextColor="#9CA3AF"
-              keyboardType="numbers-and-punctuation"
-              returnKeyType="go"
-              onSubmitEditing={applyDebugDestination}
-            />
-            <TouchableOpacity style={mapStyles.goBtn} onPress={applyDebugDestination} activeOpacity={0.8}>
-              <Text style={mapStyles.goBtnText}>Go</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-        {/* ── Map ── */}
-        <View style={{ flex: 1 }}>
-  {locationPermitted ? (
-    <MapplsGL.MapView
-      ref={mapRef}
-      style={{ flex: 1 }}
-              onDidFinishLoadingMap={() => {
-                setMapReady(true)
-                console.log('MapplsGL methods:', Object.keys(MapplsGL));
-               }}
-    >
-      <MapplsGL.Camera
-  ref={cameraRef}
-  defaultSettings={{
-    centerCoordinate: [
-      CHENNAI_CENTER.lng,
-      CHENNAI_CENTER.lat,
-    ],
-    zoomLevel: 10,
-  }}
-/>
-
-{/* USER LOCATION */}
-<MapplsGL.PointAnnotation
-  id="start"
-  coordinate={
-    userLocation
-      ? [
-          userLocation.lng,
-          userLocation.lat,
-        ]
-      : [
-          CHENNAI_CENTER.lng,
-          CHENNAI_CENTER.lat,
-        ]
-  }
->
-  <View
-    collapsable={false}
-    style={{
-      backgroundColor: userLocation
-        ? '#2563EB'
-        : '#9CA3AF',
-      paddingHorizontal: 10,
-      paddingVertical: 6,
-      borderRadius: 20,
-    }}
-  >
-    <Text
-      style={{
-        color: 'white',
-        fontWeight: '700',
-        fontSize: 11,
-      }}
-    >
-      {userLocation
-        ? 'START'
-        : 'LOCATING...'}
-    </Text>
-  </View>
-</MapplsGL.PointAnnotation>
-
-{/* DESTINATION */}
-<MapplsGL.PointAnnotation
-  id="destination"
-  coordinate={[
-    destination.lng,
-    destination.lat,
-  ]}
->
-  <View
-    style={{
-      width: 20,
-      height: 20,
-      borderRadius: 10,
-      backgroundColor: '#DC2626',
-      borderWidth: 3,
-      borderColor: '#FFFFFF',
-    }}
-  />
-</MapplsGL.PointAnnotation>
-
-{/* ROUTE LINE */}
-{routeInfo && routeGeoJSON && (
-  <MapplsGL.ShapeSource
-    id="routeSource"
-    shape={routeGeoJSON as any}
-  >
-    <MapplsGL.LineLayer
-      id="routeLine"
-      style={{
-        lineColor: '#2563EB',
-        lineWidth: 6,
-        lineOpacity: 0.9,
-        lineCap: 'round',
-        lineJoin: 'round',
-      }}
-    />
-  </MapplsGL.ShapeSource>
-)}
-    </MapplsGL.MapView>
-  ) : (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-      <ActivityIndicator size="large" color="#4F46E5" />
-      <Text style={{ color: '#6B7280', marginTop: 12 }}>Requesting location…</Text>
-    </View>
-  )}
-</View>
-
-        {/* ── Route Info Strip ── */}
-        {routeInfo && (
-          <View style={mapStyles.infoStrip}>
-            <View style={mapStyles.infoCard}>
-              <Text style={mapStyles.infoValue}>{routeInfo.distanceKm} km</Text>
-              <Text style={mapStyles.infoLabel}>Distance</Text>
-            </View>
-            <View style={mapStyles.infoDivider} />
-            <View style={mapStyles.infoCard}>
-              <Text style={mapStyles.infoValue}>{routeInfo.durationMin} min</Text>
-              <Text style={mapStyles.infoLabel}>ETA</Text>
-            </View>
-            <TouchableOpacity style={mapStyles.directionsBtn} onPress={fetchRoute} activeOpacity={0.85}>
-              <Text style={mapStyles.directionsBtnText}>↺  Refresh</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* No-location state */}
-        {!userLocation && !loadingRoute && (
-          <View style={mapStyles.infoStrip}>
-            <Text style={mapStyles.noLocText}>📡 Acquiring GPS location…</Text>
-          </View>
-        )}
-      </SafeAreaView>
-    </Modal>
-  );
-};
-// GPS Location Panel ends
-
 // Emergency Contacts Panel
 const EmergencyContactsPanel = () => {
   const call = (phone: string) => Linking.openURL(`tel:${phone.replace(/\s/g, '')}`);
@@ -697,19 +257,207 @@ const EmergencyServicesGrid = () => {
 };
 
 // Utility Services
-const UtilityServicesSection = () => (
-  <View style={styles.section}>
-    <Text style={styles.sectionTitle}>Utility Services</Text>
-    <View style={styles.grid2}>
-      {UTILITY_SERVICES.map(s => (
-        <TouchableOpacity key={s.id} style={[styles.utilityBtn, { backgroundColor: s.color }]} activeOpacity={0.85}>
-          <Text style={styles.utilityBtnIcon}>{s.icon}</Text>
-          <Text style={styles.utilityBtnLabel}>{s.label}</Text>
+const UtilityServicesSection = () => {
+
+  const searchNearbyPlace = async (
+    keyword: string,
+  ) => {
+    try {
+      const granted =
+  await PermissionsAndroid.request(
+    PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+  );
+
+if (
+  granted !==
+  PermissionsAndroid.RESULTS.GRANTED
+) {
+  Alert.alert(
+    'Permission denied',
+    'Location permission required',
+  );
+  return;
+}
+      Geolocation.getCurrentPosition(
+
+        async pos => {
+
+          const lat =
+            pos.coords.latitude;
+
+          const lng =
+            pos.coords.longitude;
+
+          const response =
+            await MapplsGL.RestApi.nearby({
+
+              keyword,
+
+              radius: 5000,
+
+              location:
+                `${lat},${lng}`,
+            });
+
+          console.log(
+            'NEARBY:',
+            JSON.stringify(
+              response,
+              null,
+              2,
+            ),
+          );
+
+          const place =
+            response
+              ?.suggestedLocations?.[0];
+
+          if (!place) {
+
+            Alert.alert(
+              'No Results',
+              'No nearby places found',
+            );
+
+            return;
+          }
+
+          const placeLat = Number(place.latitude);
+const placeLng = Number(place.longitude);
+
+if (isNaN(placeLat) || isNaN(placeLng)) {
+  Alert.alert(
+    'Invalid Location',
+    'Could not get valid coordinates',
+  );
+  return;
+}
+
+const url =
+  `google.navigation:q=${placeLat},${placeLng}`;
+
+const supported =
+  await Linking.canOpenURL(url);
+
+if (supported) {
+  await Linking.openURL(url);
+} else {
+  Alert.alert(
+    'Google Maps Not Found',
+    'No navigation app available',
+  );
+}
+
+        },
+
+        err => {
+
+          Alert.alert(
+            'Location Error',
+            err.message,
+          );
+
+        },
+
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+        },
+      );
+
+    } catch (err) {
+
+      console.log(
+        'SEARCH ERROR:',
+        err,
+      );
+
+      Alert.alert(
+        'Error',
+        'Failed to search nearby places',
+      );
+    }
+  };
+
+  return (
+    <View style={styles.section}>
+
+      <Text style={styles.sectionTitle}>
+        Utility Services
+      </Text>
+
+      <View style={styles.grid2}>
+
+        <TouchableOpacity
+          style={[
+            styles.utilityBtn,
+            {
+              backgroundColor:
+                '#3949AB',
+            },
+          ]}
+          activeOpacity={0.85}
+          onPress={() =>
+            searchNearbyPlace(
+              'tyre puncture shop',
+            )
+          }
+        >
+          <Text
+            style={
+              styles.utilityBtnIcon
+            }
+          >
+            ⊙
+          </Text>
+
+          <Text
+            style={
+              styles.utilityBtnLabel
+            }
+          >
+            Puncture
+          </Text>
+
         </TouchableOpacity>
-      ))}
+
+        <TouchableOpacity
+          style={[
+            styles.utilityBtn,
+            {
+              backgroundColor:
+                '#7B1FA2',
+            },
+          ]}
+          activeOpacity={0.85}
+          onPress={() =>
+            searchNearbyPlace(
+              'towing',
+            )
+          }
+        >
+          <Text
+            style={
+              styles.utilityBtnIcon
+            }
+          >
+            🔧
+          </Text>
+
+          <Text
+            style={
+              styles.utilityBtnLabel
+            }
+          >
+            Towing
+          </Text>
+
+        </TouchableOpacity>
+
+      </View>
     </View>
-  </View>
-);
+  );
+};
 
 // Bottom Nav Bar
 const BottomNavBar = ({ active, onSelect }: { active: string; onSelect: (tab: string) => void }) => {
@@ -733,6 +481,48 @@ const BottomNavBar = ({ active, onSelect }: { active: string; onSelect: (tab: st
       ))}
     </View>
   );
+};
+
+const searchNearbyPlace = async (
+  lat: number,
+  lng: number,
+  keyword: string,
+) => {
+  try {
+    const response =
+      await MapplsGL.RestApi.nearby({
+        location: `${lat},${lng}`,
+
+        keyword,
+
+        radius: 5000,
+      });
+
+    console.log(
+      'NEARBY RESPONSE:',
+      JSON.stringify(response, null, 2),
+    );
+
+    const firstPlace =
+      response?.suggestedLocations?.[0];
+    
+
+    if (!firstPlace) {
+      return null;
+    }
+    console.log(JSON.stringify(response, null, 2));
+    return {
+      lat: firstPlace.latitude,
+
+      lng: firstPlace.longitude,
+
+      name: firstPlace.placeName,
+    };
+  } catch (err) {
+    console.log('NEARBY ERROR:', err);
+
+    return null;
+  }
 };
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
@@ -764,8 +554,7 @@ export default function HomeScreen() {
         <EmergencyServicesGrid />
 
         {/* Utility Services */}
-        <UtilityServicesSection />
-
+        <UtilityServicesSection/>
         <View style={{ height: 16 }} />
       </ScrollView>
 
