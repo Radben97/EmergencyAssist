@@ -1,5 +1,5 @@
 import TcpSocket from 'react-native-tcp-socket';
-import { getVectorTile } from './mbtiles';
+import { getVectorTile, isDbReady } from './mbtiles';
 import { Buffer } from 'buffer';
 
 export const startTileServer = () => {
@@ -15,12 +15,8 @@ export const startTileServer = () => {
 
         const requestLine = requestBuffer.split('\r\n')[0];
         const url = requestLine.split(' ')[1] ?? '';
-        console.log('>>> TILE REQUEST:', url);
+        console.log('[TileServer] Request:', url);
 
-        const path = url.split('?')[0];
-        const parts = path.split('/').filter(Boolean);
-
-        // Send a raw HTTP response
         const sendResponse = (
           status: number,
           statusText: string,
@@ -46,6 +42,15 @@ export const startTileServer = () => {
           socket.destroy();
         };
 
+        if (!isDbReady()) {
+          console.warn('[TileServer] DB not ready');
+          sendResponse(503, 'Service Unavailable', {}, null);
+          return;
+        }
+
+        const path = url.split('?')[0];
+        const parts = path.split('/').filter(Boolean);
+
         if (parts.length < 3) {
           sendResponse(400, 'Bad Request', {}, null);
           return;
@@ -63,13 +68,14 @@ export const startTileServer = () => {
         const tileData = getVectorTile(z, x, y);
 
         if (!tileData) {
-          console.log(`No tile for ${z}/${x}/${y}`);
-          sendResponse(204, 'No Content', {}, null);
+          console.log(`[TileServer] No tile for ${z}/${x}/${y}`);
+          // 200 with empty body — 204 causes MapLibre "unexpected end of stream"
+          sendResponse(200, 'OK', { 'Content-Type': 'application/x-protobuf' }, null);
           return;
         }
 
         const isGzipped = tileData[0] === 0x1f && tileData[1] === 0x8b;
-        console.log(`Serving tile ${z}/${x}/${y} size=${tileData.length} gzip=${isGzipped}`);
+        console.log(`[TileServer] Serving ${z}/${x}/${y} size=${tileData.length} gzip=${isGzipped}`);
 
         const headers: Record<string, string> = {
           'Content-Type': 'application/x-protobuf',

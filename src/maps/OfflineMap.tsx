@@ -1,77 +1,180 @@
-import React, {
-  useEffect,
-} from 'react';
-
+import React, { useEffect, useState } from 'react';
 import {
   Map,
   Camera,
   VectorSource,
   Layer,
 } from '@maplibre/maplibre-react-native';
-import { openMBTiles } from '../services/mbtiles';
-import { startTileServer } from '../services/tileServer';
+import { prepareMBTiles } from '../services/mbtiles';
 
+export const OfflineMap = () => {
+  const [mbtilesPath, setMbtilesPath] = useState<string | null>(null);
 
-const OfflineMap =
-  () => {
-
+  useEffect(() => {
+    prepareMBTiles().then(setMbtilesPath);
+  }, []);
     useEffect(() => {
+  prepareMBTiles().then(path => {
+    console.log('MBTILES PATH:', path);
+    console.log('MBTILES URL:', `mbtiles://${path}`);
+    setMbtilesPath(path);
+  });
+}, []);
 
-      const init =
-        async () => {
+  if (!mbtilesPath) return null;
 
-          await openMBTiles();
+  return (
+    <Map
+  style={{ flex: 1 }}
+  mapStyle={{
+    version: 8,
 
-          startTileServer();
-        };
+    glyphs:
+      'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
 
-      init();
+    sources: {},
 
-    }, []);
+    layers: [
+      {
+        id: 'background',
+        type: 'background',
+        paint: {
+          'background-color': '#f8f4f0',
+        },
+      },
+    ],
+  }}
+>
+      <Camera
+        zoom={12}
+        center={[80.2707, 13.0827]}
+      />
 
-    return (
-
-      <Map
-        style={{
-          flex: 1,
-        }}
-        mapStyle={{
-          version: 8,
-          sources: {
-            offlineSource: {
-              type: 'vector',
-              tiles: [
-                'http://127.0.0.1:8181/{z}/{x}/{y}.pbf',
-              ],
-            },
-          },
-          layers: [
-            {
-              id: 'roads',
-              type: 'line',
-              source: 'offlineSource',
-              'source-layer':
-                'transportation',
-              paint: {
-                'line-color':
-                  '#ffffff',
-                'line-width': 2,
-              },
-            },
-          ],
-        }}
+      <VectorSource
+        id="chennai"
+        url={`mbtiles://${mbtilesPath}`}
       >
-
-        <Camera
-          zoom={10}
-          center={[
-            80.2707,
-            13.0827,
-          ]}
+        <Layer
+          id="water"
+          type="fill"
+          source-layer="water"
+          paint={{ 'fill-color': '#a0c8f0' }}
+              />
+              <Layer
+  id="waterways"
+  type="line"
+  source-layer="waterway"
+  paint={{
+    'line-color': '#7bb6e6',
+    'line-width': 1.2,
+  }}
+/>
+        <Layer
+          id="landuse"
+          type="fill"
+          source-layer="landuse"
+          paint={{ 'fill-color': '#e8f5e9' }}
         />
-
-      </Map>
-    );
+        <Layer
+          id="buildings"
+          type="fill"
+          source-layer="building"
+          paint={{
+            'fill-color': '#e8e0d8',
+            'fill-outline-color': '#ccc',
+          }}
+        />
+        <Layer
+          id="roads-casing"
+          type="line"
+          source-layer="transportation"
+          paint={{
+            'line-color': '#ccc',
+            'line-width': 3,
+          }}
+        />
+        <Layer
+          id="roads"
+          type="line"
+          source-layer="transportation"
+          paint={{
+            'line-color': '#ffffff',
+            'line-width': 1.5,
+          }}
+        />
+        <Layer
+  id="road-labels"
+  type="symbol"
+  source-layer="transportation_name"
+  layout={{
+    'text-field': ['get', 'name'],
+    'text-size': 14,
+  }}
+  paint={{
+    'text-color': '#000000',
+    'text-halo-color': '#ffffff',
+    'text-halo-width': 1.5,
+  }}
+              />
+              <Layer
+  id="place-labels"
+  type="symbol"
+  source-layer="place"
+  layout={{
+    'text-field': ['get', 'name'],
+    'text-size': 16,
+  }}
+  paint={{
+    'text-color': '#222',
+    'text-halo-color': '#fff',
+    'text-halo-width': 1.5,
+  }}
+              />
+              <Layer
+  id="park-labels"
+  type="symbol"
+  source-layer="park"
+  layout={{
+    'text-field': ['get', 'name'],
+    'text-size': 13,
+  }}
+  paint={{
+    'text-color': '#2e7d32',
+    'text-halo-color': '#ffffff',
+    'text-halo-width': 1,
+  }}
+              />
+              <Layer
+  id="poi-labels"
+  type="symbol"
+  source-layer="poi"
+  minzoom={12}
+  layout={{
+    'text-field': ['get', 'name'],
+    'text-size': 12,
+  }}
+  paint={{
+    'text-color': '#333',
+    'text-halo-color': '#fff',
+    'text-halo-width': 1,
+  }}
+              />
+              <Layer
+  id="airport-labels"
+  type="symbol"
+  source-layer="aerodrome_label"
+  layout={{
+    'text-field': ['get', 'name'],
+    'text-size': 14,
+  }}
+  paint={{
+    'text-color': '#000',
+    'text-halo-color': '#fff',
+    'text-halo-width': 1,
+  }}
+/>
+              
+      </VectorSource>
+    </Map>
+  );
 };
-
-export default OfflineMap;
