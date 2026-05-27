@@ -26,7 +26,8 @@
     "react-native-map-link": "^3.13.0",
     "react-native-permissions": "^5.5.1",
     "react-native-quick-sqlite": "^8.2.7",
-    "react-native-safe-area-context": "^5.5.2"
+    "react-native-safe-area-context": "^5.5.2",
+    "react-native-tcp-socket": "^6.4.1"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
