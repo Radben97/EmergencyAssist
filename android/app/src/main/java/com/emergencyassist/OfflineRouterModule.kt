@@ -31,11 +31,15 @@ class OfflineRouterModule(
 
             val gh = GraphHopper()
 
-            gh.setProfiles(
-                Profile("car")
-            )
+gh.setGraphHopperLocation(
+    graphPath
+)
 
-            gh.load(graphPath)
+gh.setProfiles(
+    Profile("car")
+)
+
+gh.load()
 
             hopper = gh
 
