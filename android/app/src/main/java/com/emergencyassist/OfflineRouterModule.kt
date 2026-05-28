@@ -29,12 +29,13 @@ class OfflineRouterModule(
             }
 
             val gh = GraphHopper()
-
-            gh.setGraphHopperLocation(
-                graphPath
-            )
-
-            gh.load()
+gh.setGraphHopperLocation(graphPath)
+gh.setProfiles(
+    com.graphhopper.config.Profile("car")
+        .setVehicle("car")
+        .setWeighting("fastest")
+)
+gh.importOrLoad()
 
             hopper = gh
 
