@@ -16,46 +16,36 @@ class OfflineRouterModule(
     }
 
     @ReactMethod
-    fun loadGraph(
-        graphPath: String,
-        promise: Promise
-    ) {
+fun loadGraph(
+    graphPath: String,
+    promise: Promise
+) {
 
-        try {
+    try {
 
-            if (hopper != null) {
-                promise.resolve(true)
-                return
-            }
-
-            val gh = GraphHopper()
-gh.setGraphHopperLocation(graphPath)
-
-gh.setProfiles(
-    com.graphhopper.config.Profile("car")
-        .setWeighting("fastest")
-)
-
-gh.getCHPreparationHandler().setCHProfiles(
-    com.graphhopper.config.CHProfile("car")  // ← config package, not routing.ch
-)
-
-gh.importOrLoad()
-hopper = gh
-promise.resolve(true)
-
-            hopper = gh
-
+        if (hopper != null) {
             promise.resolve(true)
-
-        } catch (e: Exception) {
-
-            promise.reject(
-                "LOAD_ERROR",
-                e
-            )
+            return
         }
+
+        val gh = GraphHopper()
+
+        gh.setGraphHopperLocation(graphPath)
+
+        gh.load()
+
+        hopper = gh
+
+        promise.resolve(true)
+
+    } catch (e: Exception) {
+
+        promise.reject(
+            "LOAD_ERROR",
+            e
+        )
     }
+}
 
     @ReactMethod
     fun route(
