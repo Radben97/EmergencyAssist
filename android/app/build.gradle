@@ -77,6 +77,15 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
+    compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+}
+
+kotlinOptions {
+    jvmTarget = "17"
+}
+
     namespace "com.emergencyassist"
     defaultConfig {
         applicationId "com.emergencyassist"
@@ -118,6 +127,8 @@ android {
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
+    implementation ('com.graphhopper:graphhopper-core:10.2')
+    implementation ('org.slf4j:slf4j-simple:2.0.7')
 
 
     if (hermesEnabled.toBoolean()) {

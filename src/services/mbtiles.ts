@@ -1,7 +1,7 @@
 // mbtiles.ts — drastically simplified
 import RNFS from 'react-native-fs';
 
-const DB_NAME = 'chennai.mbtiles';
+const DB_NAME = 'chennaimax.mbtiles';
 export const DB_DIR = `${RNFS.DocumentDirectoryPath}/mbtiles`;
 export const DB_PATH = `${DB_DIR}/${DB_NAME}`;
 
