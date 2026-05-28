@@ -34,11 +34,10 @@ gh.setGraphHopperLocation(graphPath)
 gh.setProfiles(
     com.graphhopper.config.Profile("car")
         .setWeighting("fastest")
-        .setTurnCosts(false)
 )
 
 gh.getCHPreparationHandler().setCHProfiles(
-    com.graphhopper.routing.ch.CHProfile("car")
+    com.graphhopper.config.CHProfile("car")  // ← config package, not routing.ch
 )
 
 gh.importOrLoad()
