@@ -127,7 +127,7 @@ kotlinOptions {
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
-    implementation ('com.graphhopper:graphhopper-core:10.2')
+    implementation ('com.graphhopper:graphhopper-core:9.0')
     implementation ('org.slf4j:slf4j-simple:2.0.7')
 
 
