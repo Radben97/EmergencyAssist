@@ -3,7 +3,6 @@ package com.emergencyassist
 import com.facebook.react.bridge.*
 import com.graphhopper.GraphHopper
 import com.graphhopper.GHRequest
-import com.graphhopper.config.Profile
 import com.graphhopper.util.Parameters
 
 class OfflineRouterModule(
@@ -31,11 +30,11 @@ class OfflineRouterModule(
 
             val gh = GraphHopper()
 
-            gh.setProfiles(
-                Profile("car")
+            gh.setGraphHopperLocation(
+                graphPath
             )
 
-            gh.load(graphPath)
+            gh.load()
 
             hopper = gh
 
