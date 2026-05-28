@@ -4,48 +4,49 @@ import { NativeModules } from 'react-native';
 
 const { OfflineRouter } = NativeModules;
 
-const GRAPH_DIR =
-  `${RNFS.DocumentDirectoryPath}/graph-cache/graph-cache`;
-
-const ZIP_PATH =
-    `${RNFS.DocumentDirectoryPath}/graph-cache.zip`;
-  
-    async function debugGraphDir() {
-  const GRAPH_DIR = `${RNFS.DocumentDirectoryPath}/graph-cache/graph-cache`;
-
-  const exists = await RNFS.exists(GRAPH_DIR);
-  console.log('DIR EXISTS:', exists);
-
-  if (exists) {
-    const files = await RNFS.readDir(GRAPH_DIR);
-    console.log('FILES:', files.map(f => f.name));
-  }
-}
-
 export async function initializeOfflineRouting() {
+  try {
+    const zipPath = `${RNFS.DocumentDirectoryPath}/graph-cache.zip`;
+    const unzipPath = `${RNFS.DocumentDirectoryPath}/graph-cache`;
 
-  const exists =
-        await RNFS.exists(GRAPH_DIR);
-    const files = await RNFS.readDir(GRAPH_DIR);
-console.log("here")
-console.log(files);
+    console.log('STEP 1 - Checking unzip folder:', unzipPath);
+    const unzipExists = await RNFS.exists(unzipPath);
+    console.log('UNZIP EXISTS:', unzipExists);
 
-  if (!exists) {
+    if (unzipExists) {
+      const contents = await RNFS.readDir(unzipPath);
+      console.log('CONTENTS COUNT:', contents.length);
 
-    await RNFS.copyFileAssets(
-      'graph-cache.zip',
-      ZIP_PATH
-    );
+      if (contents.length === 0) {
+        console.log('EMPTY FOLDER, DELETING...');
+        await RNFS.unlink(unzipPath);
+      }
+    }
 
-    await unzip(
-      ZIP_PATH,
-      GRAPH_DIR
-    );
+    const graphReady = await RNFS.exists(unzipPath);
+    console.log('GRAPH READY:', graphReady);
+
+    if (!graphReady) {
+      console.log('COPYING ZIP FROM ASSETS...');
+      await RNFS.copyFileAssets('graph-cache.zip', zipPath);
+      console.log('ZIP COPIED');
+
+      console.log('UNZIPPING TO:', RNFS.DocumentDirectoryPath);
+      await unzip(zipPath, RNFS.DocumentDirectoryPath);
+      console.log('UNZIP DONE');
+
+      const contents = await RNFS.readDir(unzipPath);
+      console.log('EXTRACTED FILES:', contents.map(f => f.name));
+    }
+
+    console.log('LOADING GRAPH FROM:', unzipPath);
+    await OfflineRouter.loadGraph(unzipPath);
+    console.log('GRAPH LOADED SUCCESSFULLY');
+
+  } catch (e) {
+    console.log('INIT ROUTING ERROR:', e);
+    throw e;
   }
-  await debugGraphDir();
-  await OfflineRouter.loadGraph(
-    GRAPH_DIR
-  );
 }
 
 export async function getOfflineRoute(
@@ -54,7 +55,6 @@ export async function getOfflineRoute(
   endLat: number,
   endLon: number
 ) {
-
   return await OfflineRouter.route(
     startLat,
     startLon,
