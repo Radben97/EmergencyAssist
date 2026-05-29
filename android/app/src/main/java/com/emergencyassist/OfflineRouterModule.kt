@@ -4,6 +4,7 @@ import com.facebook.react.bridge.*
 import com.graphhopper.GraphHopper
 import com.graphhopper.GraphHopperConfig
 import com.graphhopper.GHRequest
+import com.graphhopper.ResponsePath
 import com.graphhopper.util.Parameters
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
@@ -17,63 +18,88 @@ class OfflineRouterModule(
 
     private var hopper: GraphHopper? = null
 
-    private val filesDir get() = reactApplicationContext.filesDir
-    private val graphCacheDir get() = File(filesDir, "graph-cache")
-    private val configFile get() = File(filesDir, "config.yml")
+    private val filesDir: File
+        get() = reactApplicationContext.filesDir
 
-    override fun getName() = "OfflineRouter"
+    private val graphCacheDir: File
+        get() = File(filesDir, "graph-cache")
+
+    private val configFile: File
+        get() = File(filesDir, "config.yml")
+
+    override fun getName(): String {
+        return "OfflineRouter"
+    }
 
     // ------------------------------------------------------------------------
-    // Extract config + graph-cache from assets
+    // Extract config + graph-cache.zip
     // ------------------------------------------------------------------------
     private fun extractAssetsIfNeeded() {
 
-        // Copy config.yml
+        // config.yml
         if (!configFile.exists()) {
-            reactApplicationContext.assets.open("config.yml").use { input ->
-                FileOutputStream(configFile).use { output ->
-                    input.copyTo(output)
+
+            reactApplicationContext.assets
+                .open("config.yml")
+                .use { input ->
+
+                    FileOutputStream(configFile)
+                        .use { output ->
+
+                            input.copyTo(output)
+                        }
                 }
-            }
         }
 
-        // Extract graph-cache.zip
-        if (!graphCacheDir.exists() || graphCacheDir.list().isNullOrEmpty()) {
+        // graph-cache
+        if (
+            !graphCacheDir.exists() ||
+            graphCacheDir.list().isNullOrEmpty()
+        ) {
 
             graphCacheDir.mkdirs()
 
-            reactApplicationContext.assets.open("graph-cache.zip").use { input ->
+            reactApplicationContext.assets
+                .open("graph-cache.zip")
+                .use { input ->
 
-                ZipInputStream(input).use { zip ->
+                    ZipInputStream(input).use { zip ->
 
-                    var entry = zip.nextEntry
+                        var entry = zip.nextEntry
 
-                    while (entry != null) {
+                        while (entry != null) {
 
-                        // Remove leading "graph-cache/" if present
-                        val cleanName = entry.name.removePrefix("graph-cache/")
+                            // remove top-level graph-cache/
+                            val cleanName = entry.name
+                                .removePrefix("graph-cache/")
 
-                        if (cleanName.isNotEmpty()) {
+                            if (cleanName.isNotEmpty()) {
 
-                            val outFile = File(graphCacheDir, cleanName)
+                                val outFile =
+                                    File(graphCacheDir, cleanName)
 
-                            if (entry.isDirectory) {
-                                outFile.mkdirs()
-                            } else {
+                                if (entry.isDirectory) {
 
-                                outFile.parentFile?.mkdirs()
+                                    outFile.mkdirs()
 
-                                FileOutputStream(outFile).use { output ->
-                                    zip.copyTo(output)
+                                } else {
+
+                                    outFile.parentFile?.mkdirs()
+
+                                    FileOutputStream(outFile)
+                                        .use { output ->
+
+                                            zip.copyTo(output)
+                                        }
                                 }
                             }
-                        }
 
-                        zip.closeEntry()
-                        entry = zip.nextEntry
+                            zip.closeEntry()
+
+                            entry = zip.nextEntry
+                        }
                     }
                 }
-            }
         }
     }
 
@@ -85,39 +111,44 @@ class OfflineRouterModule(
 
         try {
 
+            // already loaded
             if (hopper != null) {
+
                 promise.resolve(true)
                 return
             }
 
-            // Extract assets
+            // extract assets
             extractAssetsIfNeeded()
 
-            // Parse config.yml
+            // yaml mapper
             val mapper = ObjectMapper(YAMLFactory())
 
+            // parse config.yml
             val config = mapper.readValue(
                 configFile,
                 GraphHopperConfig::class.java
             )
 
-            // Init GraphHopper
-            val gh = GraphHopper()
-
-            gh.init(config)
-
-            // Override graph location to app internal storage
-            gh.config.putObject(
+            // override graph location
+            config.putObject(
                 "graph.location",
                 graphCacheDir.absolutePath
             )
 
-            // Load existing graph-cache
-            val loaded = gh.load(graphCacheDir.absolutePath)
+            // init hopper
+            val gh = GraphHopper()
+
+            gh.init(config)
+
+            // load existing graph-cache
+            val loaded = gh.load()
 
             if (!loaded) {
+
                 throw Exception(
-                    "Failed to load graph-cache from: ${graphCacheDir.absolutePath}"
+                    "Failed to load graph-cache from:\n" +
+                            graphCacheDir.absolutePath
                 )
             }
 
@@ -136,7 +167,7 @@ class OfflineRouterModule(
     }
 
     // ------------------------------------------------------------------------
-    // Route between two points
+    // Route
     // ------------------------------------------------------------------------
     @ReactMethod
     fun route(
@@ -150,7 +181,9 @@ class OfflineRouterModule(
         try {
 
             val gh = hopper
-                ?: throw Exception("Graph not loaded")
+                ?: throw Exception(
+                    "Graph not loaded. Call loadGraph first."
+                )
 
             val request = GHRequest(
                 startLat,
@@ -169,16 +202,17 @@ class OfflineRouterModule(
             if (response.hasErrors()) {
 
                 throw Exception(
-                    response.errors.joinToString {
+                    response.errors.joinToString("\n") {
                         it.message ?: "Unknown routing error"
                     }
                 )
             }
 
-            val best = response.best
-            val points = best.points
+            val best: ResponsePath = response.best
 
             val coordinates = Arguments.createArray()
+
+            val points = best.points
 
             for (i in 0 until points.size()) {
 
@@ -192,9 +226,20 @@ class OfflineRouterModule(
 
             val result = Arguments.createMap()
 
-            result.putArray("coordinates", coordinates)
-            result.putDouble("distance", best.distance)
-            result.putDouble("time", best.time.toDouble())
+            result.putArray(
+                "coordinates",
+                coordinates
+            )
+
+            result.putDouble(
+                "distance",
+                best.distance
+            )
+
+            result.putDouble(
+                "time",
+                best.time.toDouble()
+            )
 
             promise.resolve(result)
 
@@ -217,6 +262,7 @@ class OfflineRouterModule(
         try {
 
             hopper?.close()
+
             hopper = null
 
             promise.resolve(true)
