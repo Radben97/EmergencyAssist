@@ -25,11 +25,13 @@
     "react-native-fs": "^2.20.0",
     "react-native-geolocation-service": "^5.3.1",
     "react-native-http-bridge-refurbished": "^1.2.9",
+    "react-native-incall-manager": "^4.2.1",
     "react-native-map-link": "^3.13.0",
     "react-native-permissions": "^5.5.1",
     "react-native-quick-sqlite": "^8.2.7",
     "react-native-safe-area-context": "^5.5.2",
     "react-native-tcp-socket": "^6.4.1",
+    "react-native-tts": "^4.1.1",
     "react-native-zip-archive": "^8.0.1"
   },
   "devDependencies": {
