@@ -18,7 +18,7 @@ class OfflineRouterModule(
 
     private val filesDir get() = reactApplicationContext.filesDir
     private val graphCacheDir get() = File(filesDir, "graph-cache")
-    private val configFile get() = File(filesDir, "config.yaml")
+    private val configFile get() = File(filesDir, "config.yml")
 
     override fun getName() = "OfflineRouter"
 
