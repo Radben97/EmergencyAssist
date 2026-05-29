@@ -8,6 +8,7 @@ import com.graphhopper.util.Parameters
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import java.io.File
+import java.io.FileOutputStream
 import java.util.zip.ZipInputStream
 
 class OfflineRouterModule(
@@ -22,31 +23,52 @@ class OfflineRouterModule(
 
     override fun getName() = "OfflineRouter"
 
-    // ---------------------------------------------------------------------------
-    // Extract graph-cache.zip from assets to internal storage (once)
-    // ---------------------------------------------------------------------------
+    // ------------------------------------------------------------------------
+    // Extract config + graph-cache from assets
+    // ------------------------------------------------------------------------
     private fun extractAssetsIfNeeded() {
-        // Copy config.yaml
+
+        // Copy config.yml
         if (!configFile.exists()) {
             reactApplicationContext.assets.open("config.yml").use { input ->
-                configFile.outputStream().use { input.copyTo(it) }
+                FileOutputStream(configFile).use { output ->
+                    input.copyTo(output)
+                }
             }
         }
 
-        // Unzip graph-cache.zip
+        // Extract graph-cache.zip
         if (!graphCacheDir.exists() || graphCacheDir.list().isNullOrEmpty()) {
+
             graphCacheDir.mkdirs()
+
             reactApplicationContext.assets.open("graph-cache.zip").use { input ->
+
                 ZipInputStream(input).use { zip ->
+
                     var entry = zip.nextEntry
+
                     while (entry != null) {
-                        val outFile = File(filesDir, entry.name)
-                        if (entry.isDirectory) {
-                            outFile.mkdirs()
-                        } else {
-                            outFile.parentFile?.mkdirs()
-                            outFile.outputStream().use { zip.copyTo(it) }
+
+                        // Remove leading "graph-cache/" if present
+                        val cleanName = entry.name.removePrefix("graph-cache/")
+
+                        if (cleanName.isNotEmpty()) {
+
+                            val outFile = File(graphCacheDir, cleanName)
+
+                            if (entry.isDirectory) {
+                                outFile.mkdirs()
+                            } else {
+
+                                outFile.parentFile?.mkdirs()
+
+                                FileOutputStream(outFile).use { output ->
+                                    zip.copyTo(output)
+                                }
+                            }
                         }
+
                         zip.closeEntry()
                         entry = zip.nextEntry
                     }
@@ -55,50 +77,67 @@ class OfflineRouterModule(
         }
     }
 
-    // ---------------------------------------------------------------------------
-    // Load GraphHopper using config.yaml (fixes profile hash mismatch)
-    // ---------------------------------------------------------------------------
+    // ------------------------------------------------------------------------
+    // Load GraphHopper
+    // ------------------------------------------------------------------------
     @ReactMethod
     fun loadGraph(promise: Promise) {
+
         try {
+
             if (hopper != null) {
                 promise.resolve(true)
                 return
             }
 
-            // Step 1: extract zip + config.yaml from assets to internal storage
+            // Extract assets
             extractAssetsIfNeeded()
 
-            // Step 2: load config.yaml — same file used during import
-            // this is the fix from the forum: init from config so profile
-            // hash matches the graph cache exactly
+            // Parse config.yml
             val mapper = ObjectMapper(YAMLFactory())
-            val config = mapper.treeToValue(
-                mapper.readTree(configFile).at("/graphhopper"),
+
+            val config = mapper.readValue(
+                configFile,
                 GraphHopperConfig::class.java
             )
 
-            // Step 3: init GraphHopper from config, override location to
-            // internal storage path (config.yaml has an empty datareader.file
-            // which is fine — we only need it for import, not load)
+            // Init GraphHopper
             val gh = GraphHopper()
-            gh.init(config)
-            gh.graphHopperLocation = graphCacheDir.absolutePath
 
-            // Step 4: load from graph-cache (no import, read-only)
-            gh.load()
+            gh.init(config)
+
+            // Override graph location to app internal storage
+            gh.config.putObject(
+                "graph.location",
+                graphCacheDir.absolutePath
+            )
+
+            // Load existing graph-cache
+            val loaded = gh.load(graphCacheDir.absolutePath)
+
+            if (!loaded) {
+                throw Exception(
+                    "Failed to load graph-cache from: ${graphCacheDir.absolutePath}"
+                )
+            }
 
             hopper = gh
+
             promise.resolve(true)
 
         } catch (e: Exception) {
-            promise.reject("LOAD_ERROR", e.message, e)
+
+            promise.reject(
+                "LOAD_ERROR",
+                e.message,
+                e
+            )
         }
     }
 
-    // ---------------------------------------------------------------------------
-    // Route between two coordinates
-    // ---------------------------------------------------------------------------
+    // ------------------------------------------------------------------------
+    // Route between two points
+    // ------------------------------------------------------------------------
     @ReactMethod
     fun route(
         startLat: Double,
@@ -107,53 +146,88 @@ class OfflineRouterModule(
         endLon: Double,
         promise: Promise
     ) {
-        try {
-            val gh = hopper ?: throw Exception("Graph not loaded. Call loadGraph first.")
 
-            val request = GHRequest(startLat, startLon, endLat, endLon)
+        try {
+
+            val gh = hopper
+                ?: throw Exception("Graph not loaded")
+
+            val request = GHRequest(
+                startLat,
+                startLon,
+                endLat,
+                endLon
+            )
                 .setProfile("car")
-                .putHint(Parameters.Routing.INSTRUCTIONS, true)
+                .putHint(
+                    Parameters.Routing.INSTRUCTIONS,
+                    true
+                )
 
             val response = gh.route(request)
 
             if (response.hasErrors()) {
-                throw Exception(response.errors.joinToString { it.message ?: "unknown error" })
+
+                throw Exception(
+                    response.errors.joinToString {
+                        it.message ?: "Unknown routing error"
+                    }
+                )
             }
 
-            val bestPath = response.best
-            val points = bestPath.points
+            val best = response.best
+            val points = best.points
 
             val coordinates = Arguments.createArray()
+
             for (i in 0 until points.size()) {
+
                 val coord = Arguments.createArray()
+
                 coord.pushDouble(points[i].lon)
                 coord.pushDouble(points[i].lat)
+
                 coordinates.pushArray(coord)
             }
 
             val result = Arguments.createMap()
+
             result.putArray("coordinates", coordinates)
-            result.putDouble("distance", bestPath.distance)
-            result.putDouble("time", bestPath.time.toDouble())
+            result.putDouble("distance", best.distance)
+            result.putDouble("time", best.time.toDouble())
 
             promise.resolve(result)
 
         } catch (e: Exception) {
-            promise.reject("ROUTE_ERROR", e.message, e)
+
+            promise.reject(
+                "ROUTE_ERROR",
+                e.message,
+                e
+            )
         }
     }
 
-    // ---------------------------------------------------------------------------
+    // ------------------------------------------------------------------------
     // Cleanup
-    // ---------------------------------------------------------------------------
+    // ------------------------------------------------------------------------
     @ReactMethod
     fun unload(promise: Promise) {
+
         try {
+
             hopper?.close()
             hopper = null
+
             promise.resolve(true)
+
         } catch (e: Exception) {
-            promise.reject("UNLOAD_ERROR", e.message, e)
+
+            promise.reject(
+                "UNLOAD_ERROR",
+                e.message,
+                e
+            )
         }
     }
 }
