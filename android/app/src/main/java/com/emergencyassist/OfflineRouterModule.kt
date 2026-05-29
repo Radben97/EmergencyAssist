@@ -28,15 +28,18 @@ class OfflineRouterModule(
                 return
             }
 
-            val gh = GraphHopper()
-gh.setGraphHopperLocation(graphPath)
+             val gh = GraphHopper()
 
-// ADD THESE TWO LINES
-gh.setProfiles(com.graphhopper.config.Profile("car").setWeighting("fastest"))
-gh.getCHPreparationHandler().setCHProfiles(com.graphhopper.config.CHProfile("car"))
+            gh.setGraphHopperLocation(graphPath)
 
-gh.load()
-hopper = gh
+            gh.load()
+            println(
+    "PROFILES: " +
+    gh.profiles.map { it.name }
+)
+            hopper = gh
+
+            promise.resolve(true)
 promise.resolve(true)
 
             hopper = gh
