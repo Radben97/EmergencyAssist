@@ -132,6 +132,7 @@ dependencies {
         exclude group: 'org.codehaus.commons-compiler'
     }
     implementation ('org.slf4j:slf4j-simple:2.0.7')
+    implementation ('com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.15.0') 
 
 
     if (hermesEnabled.toBoolean()) {
