@@ -28,7 +28,7 @@ class OfflineRouterModule(
     private fun extractAssetsIfNeeded() {
         // Copy config.yaml
         if (!configFile.exists()) {
-            reactApplicationContext.assets.open("config.yaml").use { input ->
+            reactApplicationContext.assets.open("config.yml").use { input ->
                 configFile.outputStream().use { input.copyTo(it) }
             }
         }
