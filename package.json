@@ -22,6 +22,7 @@
     "npm": "^11.15.0",
     "react": "19.2.3",
     "react-native": "0.85.3",
+    "react-native-background-actions": "^4.1.0",
     "react-native-config": "^1.6.1",
     "react-native-fs": "^2.20.0",
     "react-native-geolocation-service": "^5.3.1",
@@ -33,6 +34,7 @@
     "react-native-safe-area-context": "^5.5.2",
     "react-native-tcp-socket": "^6.4.1",
     "react-native-tts": "^4.1.1",
+    "react-native-volume-manager": "^2.0.8",
     "react-native-zip-archive": "^8.0.1"
   },
   "devDependencies": {
