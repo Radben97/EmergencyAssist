@@ -17,21 +17,58 @@ class TileServer(
 
     override fun serve(session: IHTTPSession): Response {
 
+        if (session.method == Method.OPTIONS) {
+
+            val response = newFixedLengthResponse(
+                Response.Status.OK,
+                "text/plain",
+                ""
+            )
+
+            response.addHeader(
+                "Access-Control-Allow-Origin",
+                "*"
+            )
+
+            response.addHeader(
+                "Access-Control-Allow-Methods",
+                "GET, OPTIONS"
+            )
+
+            response.addHeader(
+                "Access-Control-Allow-Headers",
+                "*"
+            )
+
+            return response
+        }
+
         val path = session.uri.trim('/')
 
         val parts = path.split("/")
 
         if (parts.size != 3) {
-            return newFixedLengthResponse(
+
+            val response = newFixedLengthResponse(
                 Response.Status.NOT_FOUND,
                 "text/plain",
                 "Invalid path"
             )
+
+            response.addHeader(
+                "Access-Control-Allow-Origin",
+                "*"
+            )
+
+            return response
         }
 
         try {
+
             val z = parts[0].toInt()
+
             val x = parts[1].toInt()
+
             val y = parts[2]
                 .replace(".pbf", "")
                 .toInt()
@@ -54,33 +91,70 @@ class TileServer(
             )
 
             if (!cursor.moveToFirst()) {
+
                 cursor.close()
 
-                return newFixedLengthResponse(
+                val response = newFixedLengthResponse(
                     Response.Status.NOT_FOUND,
                     "text/plain",
                     "Tile not found"
                 )
+
+                response.addHeader(
+                    "Access-Control-Allow-Origin",
+                    "*"
+                )
+
+                return response
             }
 
             val tile = cursor.getBlob(0)
 
             cursor.close()
 
-            return newFixedLengthResponse(
+            val response = newFixedLengthResponse(
                 Response.Status.OK,
                 "application/x-protobuf",
                 ByteArrayInputStream(tile),
                 tile.size.toLong()
             )
 
+            response.addHeader(
+                "Access-Control-Allow-Origin",
+                "*"
+            )
+
+            response.addHeader(
+                "Access-Control-Allow-Methods",
+                "GET, OPTIONS"
+            )
+
+            response.addHeader(
+                "Access-Control-Allow-Headers",
+                "*"
+            )
+
+            response.addHeader(
+                "Content-Encoding",
+                "gzip"
+            )
+
+            return response
+
         } catch (e: Exception) {
 
-            return newFixedLengthResponse(
+            val response = newFixedLengthResponse(
                 Response.Status.INTERNAL_ERROR,
                 "text/plain",
                 e.message ?: "error"
             )
+
+            response.addHeader(
+                "Access-Control-Allow-Origin",
+                "*"
+            )
+
+            return response
         }
     }
 }
