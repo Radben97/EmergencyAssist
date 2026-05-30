@@ -1,5 +1,6 @@
 package com.emergencyassist
 
+import android.util.Log
 import android.app.Application
 import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
@@ -14,14 +15,26 @@ class MainApplication : Application(), ReactApplication {
       context = applicationContext,
       packageList =
         PackageList(this).packages.apply {
-          // Packages that cannot be autolinked yet can be added manually here, for example:
-          // add(MyReactNativePackage())
+          // add custom packages here if needed
         },
     )
   }
 
   override fun onCreate() {
     super.onCreate()
+
+    // Copy MBTiles from assets to app storage
+    val mbtilesPath = MBTilesManager.prepareMBTiles(this)
+
+    // Start localhost tile server
+    TileServerHolder.server = TileServer(mbtilesPath)
+    TileServerHolder.server?.start()
+
+    Log.d(
+      "TileServer",
+      "Running on http://127.0.0.1:8080"
+    )
+
     loadReactNative(this)
   }
 }

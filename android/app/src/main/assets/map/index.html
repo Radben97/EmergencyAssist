@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<link
+  rel="stylesheet"
+  href="./maplibre-gl.css"
+/>
+
+<script src="./maplibre-gl.js"></script>
+
+</head>
+
+<body>
+
+<div
+  id="map"
+  style="
+    width:100vw;
+    height:100vh;
+  "
+></div>
+
+<script type="module">
+
+import {
+  route,
+  MapLibreRoutingControl
+}
+from './omt-router.js';
+
+const map =
+  new maplibregl.Map({
+
+    container: 'map',
+
+    style: './style.json',
+
+    center: [80.2707,13.0827],
+
+    zoom: 11
+});
+
+</script>
+
+</body>
+</html>
