@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,14 @@ const MESSAGE = 'This is an automated emergency alert. Possible accident detecte
 export default function EmergencyCallTest() {
   const [calling, setCalling] = useState(false);
   const [status, setStatus] = useState('');
+  useEffect(() => {
+  fetch("http://127.0.0.1:8080/0/0/0.pbf")
+    .then(r => {
+      console.log("status", r.status);
+      console.log("headers", [...r.headers.entries()]);
+    })
+    .catch(console.error);
+}, []);
 
   const requestPermissions = async () => {
     if (Platform.OS !== 'android') return true;

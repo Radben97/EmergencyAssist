@@ -9,12 +9,12 @@ import React, { useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import MapplsGL from 'mappls-map-react-native';
 import HomeScreen from './src/page/HomeScreen';
-import { OfflineMap } from './src/maps/OfflineMap';
 import EmergencyCallTest from './src/components/EmergencyCallTest';
+import OfflineMap from './src/page/OfflineMap';
 
 
 const App = () => {
-  return <EmergencyCallTest />;
+  return <OfflineMap />;
 };
 
 const styles = StyleSheet.create({
