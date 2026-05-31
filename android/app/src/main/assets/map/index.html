@@ -21,7 +21,29 @@ body,
 }
 </style>
 
-<script src="./omt-router.js"></script>
+<script type="module">
+
+import * as omt from './omt-router.js';
+
+window.ReactNativeWebView?.postMessage(
+  "OMT EXPORTS:\n" +
+  Object.keys(omt).join(", ")
+);
+
+window.omt = omt;
+window.ReactNativeWebView?.postMessage(
+  "route type = " + typeof omt.route
+);
+
+window.ReactNativeWebView?.postMessage(
+  "computeRoute type = " + typeof omt.computeRoute
+);
+
+window.ReactNativeWebView?.postMessage(
+  "buildGraphForTiles type = " + typeof omt.buildGraphForTiles
+);
+
+</script>
 
 </head>
 
