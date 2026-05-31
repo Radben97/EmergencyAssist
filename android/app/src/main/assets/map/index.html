@@ -1,45 +1,218 @@
 <!DOCTYPE html>
 <html>
 <head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 
 <link
   rel="stylesheet"
-  href="./maplibre-gl.css"
+  href="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css"
 />
 
-<script src="./maplibre-gl.js"></script>
+<script src="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js"></script>
+
+<style>
+html,
+body,
+#map {
+  margin:0;
+  padding:0;
+  width:100%;
+  height:100%;
+}
+</style>
+
+<script src="./omt-router.js"></script>
 
 </head>
 
 <body>
 
-<div
-  id="map"
-  style="
-    width:100vw;
-    height:100vh;
-  "
-></div>
+<div id="map"></div>
 
-<script type="module">
+<script>
 
-import {
-  route,
-  MapLibreRoutingControl
+function send(msg) {
+  console.log(msg);
+
+  if (window.ReactNativeWebView) {
+    window.ReactNativeWebView.postMessage(msg);
+  }
 }
-from './omt-router.js';
 
-const map =
-  new maplibregl.Map({
+send("=== PAGE START ===");
 
-    container: 'map',
+window.onerror = function(msg, src, line, col, err) {
+  send(
+    "WINDOW ERROR: " +
+    msg +
+    " @ " +
+    line +
+    ":" +
+    col
+  );
+};
 
-    style: './style.json',
+send("MapLibre version: " + maplibregl.version);
 
-    center: [80.2707,13.0827],
+try {
+  send("typeof route = " + typeof route);
+} catch(e) {
+  send("route check failed: " + e);
+}
 
-    zoom: 11
+try {
+  send("typeof OmtRouter = " + typeof OmtRouter);
+} catch(e) {
+  send("OmtRouter check failed: " + e);
+}
+
+try {
+  send("typeof buildGraph = " + typeof buildGraph);
+} catch(e) {
+  send("buildGraph check failed: " + e);
+}
+
+try {
+  send("typeof createGraph = " + typeof createGraph);
+} catch(e) {
+  send("createGraph check failed: " + e);
+}
+
+try {
+
+  const candidates =
+    Object.getOwnPropertyNames(window)
+      .filter(k =>
+        k.toLowerCase().includes("route") ||
+        k.toLowerCase().includes("graph") ||
+        k.toLowerCase().includes("tile") ||
+        k.toLowerCase().includes("omt")
+      );
+
+  send(
+    "WINDOW CANDIDATES:\n" +
+    JSON.stringify(candidates, null, 2)
+  );
+
+} catch(e) {
+  send("window scan failed: " + e);
+}
+
+const map = new maplibregl.Map({
+
+  container: "map",
+
+  center: [80.2707,13.0827],
+
+  zoom: 11,
+
+  style: {
+
+    version: 8,
+
+    glyphs:
+      "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
+
+    sources: {
+
+      chennai: {
+
+        type: "vector",
+
+        tiles: [
+          "http://localhost:8080/{z}/{x}/{y}.pbf"
+        ],
+
+        minzoom: 0,
+        maxzoom: 14
+
+      }
+
+    },
+
+    layers: [
+
+      {
+        id:"background",
+        type:"background",
+        paint:{
+          "background-color":"#f8f4f0"
+        }
+      },
+
+      {
+        id:"roads",
+        type:"line",
+        source:"chennai",
+        "source-layer":"transportation",
+        paint:{
+          "line-color":"#ffffff",
+          "line-width":2
+        }
+      }
+
+    ]
+  }
 });
+
+map.on("load", () => {
+
+  send("=== MAP LOADED ===");
+
+  map.addSource("route-test", {
+    type: "geojson",
+    data: {
+      type: "Feature",
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [80.2707,13.0827],
+          [80.2807,13.0927]
+        ]
+      }
+    }
+  });
+
+  map.addLayer({
+    id: "route-test-layer",
+    type: "line",
+    source: "route-test",
+    paint: {
+      "line-color": "#ff0000",
+      "line-width": 6
+    }
+  });
+
+  send("Dummy route rendered");
+
+});
+
+map.on("error", (e) => {
+  send(
+    "MAP ERROR:\n" +
+    JSON.stringify(e.error || e)
+  );
+});
+
+setTimeout(() => {
+
+  try {
+
+    send(
+      "Final route type = " +
+      typeof route
+    );
+
+  } catch(e) {
+
+    send(
+      "Final route error = " +
+      e
+    );
+
+  }
+
+}, 3000);
 
 </script>
 
